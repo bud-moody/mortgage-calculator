@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sync"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -41,10 +42,16 @@ func monthlyPayment(calculationRequest CalculationRequest) int {
 	lowerBound := 0
 	upperBound := 0
 
+	var mutex sync.Mutex
+
 	// Establish an upper bound
 	initialGuess := 0
 	for upperBound == 0 {
+		var wg sync.WaitGroup
+		wg.Add(1)
 		calculateForMonthlyPayment(
+			&mutex,
+			&wg,
 			initialGuess,
 			&lowerBound,
 			&upperBound, 
@@ -52,23 +59,65 @@ func monthlyPayment(calculationRequest CalculationRequest) int {
 			int(calculationRequest.LoanAmount), 
 			calculationRequest.InterestRate)
 		initialGuess = initialGuess + 1000_00
+		wg.Wait()
 	}
 
-	// Bisect lower bound and upper bound
+	// Try different values between lower and upper bound
 	for lowerBound != upperBound {
-		calculateForMonthlyPayment(
-			(lowerBound + upperBound) / 2,
+		fmt.Println("here we go")
+		var wg sync.WaitGroup
+
+		wg.Add(1)
+		go calculateForMonthlyPayment(
+			&mutex,
+			&wg,
+			(3*lowerBound + upperBound) / 4,
 			&lowerBound,
 			&upperBound, 
 			int(calculationRequest.DurationInYears), 
 			int(calculationRequest.LoanAmount), 
 			calculationRequest.InterestRate)
+		
+		wg.Add(1)
+		go calculateForMonthlyPayment(
+			&mutex,
+			&wg,
+			(2*lowerBound + 2*upperBound) / 4,
+			&lowerBound,
+			&upperBound, 
+			int(calculationRequest.DurationInYears), 
+			int(calculationRequest.LoanAmount), 
+			calculationRequest.InterestRate)
+
+		wg.Add(1)
+		go calculateForMonthlyPayment(
+			&mutex,
+			&wg,
+			(lowerBound + 3*upperBound) / 4,
+			&lowerBound,
+			&upperBound, 
+			int(calculationRequest.DurationInYears), 
+			int(calculationRequest.LoanAmount), 
+			calculationRequest.InterestRate)
+
+		wg.Wait()
 	}
 
 	return lowerBound
 }
 
-func calculateForMonthlyPayment(payment int, lowerBound *int, upperBound *int, years int, loanAmount int, interestRate float32) {
+func calculateForMonthlyPayment(
+		mutex *sync.Mutex,
+		wg *sync.WaitGroup,
+		payment int, 
+		lowerBound *int, 
+		upperBound *int, 
+		years int, 
+		loanAmount int, 
+		interestRate float32) {
+
+	defer wg.Done()
+			
 	var amount float32 = float32(loanAmount)
 	var months int = 0
 	for months < years * 12 + 1 {
@@ -76,6 +125,7 @@ func calculateForMonthlyPayment(payment int, lowerBound *int, upperBound *int, y
 		months++
 	}
 
+	mutex.Lock()
 	if (*upperBound == 0 && amount < 0) {
 		*upperBound = payment;
 	} else if (amount < 0 && payment < *upperBound) {
@@ -87,4 +137,5 @@ func calculateForMonthlyPayment(payment int, lowerBound *int, upperBound *int, y
 		*upperBound = payment
 	}
 	fmt.Printf("%f, %d, %d, %d \n", amount, *lowerBound, *upperBound, payment)
+	mutex.Unlock()
 }
