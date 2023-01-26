@@ -9,6 +9,8 @@ import (
 	"strconv"
 )
 
+const numThreads = 4
+
 func main() {
 	http.HandleFunc("/calculate", handler)
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -38,10 +40,8 @@ type CalculationRequest struct {
 }
 
 func monthlyPayment(calculationRequest CalculationRequest) int {
-
 	lowerBound := 0
 	upperBound := 0
-
 	var mutex sync.Mutex
 
 	// Establish an upper bound
@@ -64,41 +64,19 @@ func monthlyPayment(calculationRequest CalculationRequest) int {
 
 	// Try different values between lower and upper bound
 	for lowerBound != upperBound {
-		fmt.Println("here we go")
 		var wg sync.WaitGroup
-
-		wg.Add(1)
-		go calculateForMonthlyPayment(
-			&mutex,
-			&wg,
-			(3*lowerBound + upperBound) / 4,
-			&lowerBound,
-			&upperBound, 
-			int(calculationRequest.DurationInYears), 
-			int(calculationRequest.LoanAmount), 
-			calculationRequest.InterestRate)
-		
-		wg.Add(1)
-		go calculateForMonthlyPayment(
-			&mutex,
-			&wg,
-			(2*lowerBound + 2*upperBound) / 4,
-			&lowerBound,
-			&upperBound, 
-			int(calculationRequest.DurationInYears), 
-			int(calculationRequest.LoanAmount), 
-			calculationRequest.InterestRate)
-
-		wg.Add(1)
-		go calculateForMonthlyPayment(
-			&mutex,
-			&wg,
-			(lowerBound + 3*upperBound) / 4,
-			&lowerBound,
-			&upperBound, 
-			int(calculationRequest.DurationInYears), 
-			int(calculationRequest.LoanAmount), 
-			calculationRequest.InterestRate)
+		for i:= 0; i < numThreads; i++ {
+			wg.Add(1)
+			go calculateForMonthlyPayment(
+				&mutex,
+				&wg,
+				(3*lowerBound + upperBound) / 4,
+				&lowerBound,
+				&upperBound, 
+				int(calculationRequest.DurationInYears), 
+				int(calculationRequest.LoanAmount), 
+				calculationRequest.InterestRate)
+		}
 
 		wg.Wait()
 	}
