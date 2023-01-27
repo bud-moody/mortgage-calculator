@@ -5,13 +5,12 @@ import (
 	"sync"
 )
 
-const tolerance = 500_00 // TODO allow this to be lower by using decimals for working out monthly payment
 func MonthlyPaymentAndUpdateBounds(
 		mutex *sync.Mutex,
 		wg *sync.WaitGroup,
-		payment int, 
-		lowerBound *int, 
-		upperBound *int, 
+		payment float32, 
+		lowerBound *float32, 
+		upperBound *float32, 
 		years int, 
 		loanAmount int, 
 		interestRate float32) {
@@ -26,16 +25,13 @@ func MonthlyPaymentAndUpdateBounds(
 	}
 
 	mutex.Lock()
-	if (*upperBound == 0 && amount < 0) {
-		*upperBound = payment;
+	if (amount < 0 && *upperBound == 0) { // For initializing upper bound
+		*upperBound = payment; 
 	} else if (amount < 0 && payment < *upperBound) {
 		*upperBound = payment
-	} else if (amount > tolerance && payment > *lowerBound) {
+	} else if (amount > 0 && payment > *lowerBound) {
 		*lowerBound = payment
-	} else if (amount >= 0 && amount <= tolerance) {
-		*lowerBound = payment
-		*upperBound = payment
-	}
-	fmt.Printf("%f, %d, %d, %d \n", amount, *lowerBound, *upperBound, payment)
+	} 
+	fmt.Printf("%f, %f, %f, %f \n", amount, *lowerBound, *upperBound, payment)
 	mutex.Unlock()
 }

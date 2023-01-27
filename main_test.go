@@ -1,7 +1,7 @@
 package main
 
 import (
-    "testing"
+	"testing"
 )
 
 func TestFindMonthlyPaymentIteratively(t *testing.T) {
@@ -11,7 +11,7 @@ func TestFindMonthlyPaymentIteratively(t *testing.T) {
 	cr.LoanAmount = 500_000_00
 
 	actual := findMonthlyPaymentIteratively(cr)
-	if (actual != 2_290_60) {
-		t.Fatalf("Expected: %d but got %d", 2_290_60, actual)
+	if actual != 2_289_60 {
+		t.Fatalf("Expected: %d but got %d", 2_289_60, actual)
 	}
 }

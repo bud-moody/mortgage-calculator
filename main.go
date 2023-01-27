@@ -1,13 +1,13 @@
 package main
 
 import (
-	"sync"
 	"encoding/json"
 	"fmt"
 	"log"
+	"mortgageCalculator/monthlyPayment"
 	"net/http"
 	"strconv"
-	"mortgageCalculator/monthlyPayment"
+	"sync"
 )
 
 const numThreads = 4
@@ -18,13 +18,13 @@ func main() {
 
 }
 
-func handler(w http.ResponseWriter, r *http.Request){
+func handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(200)
 
 	var cr CalculationRequest
 	err := json.NewDecoder(r.Body).Decode(&cr)
-	if (err != nil) {
+	if err != nil {
 		fmt.Println(err)
 		panic(err)
 	}
@@ -35,18 +35,18 @@ func handler(w http.ResponseWriter, r *http.Request){
 }
 
 type CalculationRequest struct {
-	DurationInYears uint `json:",string"`
-	LoanAmount uint `json:",string"`
-	InterestRate float32 `json:",string"`
+	DurationInYears uint    `json:",string"`
+	LoanAmount      uint    `json:",string"`
+	InterestRate    float32 `json:",string"`
 }
 
 func findMonthlyPaymentIteratively(calculationRequest CalculationRequest) int {
-	lowerBound := 0
-	upperBound := 0
+	var lowerBound float32
+	var upperBound float32
 	var mutex sync.Mutex
 
 	// Establish an upper bound
-	initialGuess := 0
+	var initialGuess float32
 	for upperBound == 0 {
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -55,34 +55,32 @@ func findMonthlyPaymentIteratively(calculationRequest CalculationRequest) int {
 			&wg,
 			initialGuess,
 			&lowerBound,
-			&upperBound, 
-			int(calculationRequest.DurationInYears), 
-			int(calculationRequest.LoanAmount), 
+			&upperBound,
+			int(calculationRequest.DurationInYears),
+			int(calculationRequest.LoanAmount),
 			calculationRequest.InterestRate)
 		initialGuess = initialGuess + 1000_00
 		wg.Wait()
 	}
 
 	// Try different values between lower and upper bound
-	for lowerBound != upperBound {
+	for int(lowerBound) != int(upperBound) {
 		var wg sync.WaitGroup
-		for i:= 0; i < numThreads; i++ {
+		for i := 0; i < numThreads; i++ {
 			wg.Add(1)
 			go monthlyPayment.MonthlyPaymentAndUpdateBounds(
 				&mutex,
 				&wg,
-				(3*lowerBound + upperBound) / 4,
+				(float32(i+1)*lowerBound+float32(numThreads-i)*upperBound)/(numThreads+1),
 				&lowerBound,
-				&upperBound, 
-				int(calculationRequest.DurationInYears), 
-				int(calculationRequest.LoanAmount), 
+				&upperBound,
+				int(calculationRequest.DurationInYears),
+				int(calculationRequest.LoanAmount),
 				calculationRequest.InterestRate)
 		}
 
 		wg.Wait()
 	}
 
-	return lowerBound
+	return int(lowerBound)
 }
-
-
