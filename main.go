@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"mortgageCalculator/monthlyPayment"
 	"net/http"
 	"strconv"
-	"sync"
 )
 
 const numThreads = 4
@@ -41,46 +41,38 @@ type CalculationRequest struct {
 }
 
 func findMonthlyPaymentIteratively(calculationRequest CalculationRequest) int {
-	var lowerBound float32
-	var upperBound float32
-	var mutex sync.Mutex
+	var bounds monthlyPayment.Bounds
+	chBounds := make(chan monthlyPayment.Bounds)
 
 	// Establish an upper bound
 	var initialGuess float32
-	for upperBound == 0 {
-		var wg sync.WaitGroup
-		wg.Add(1)
-		monthlyPayment.MonthlyPaymentAndUpdateBounds(
-			&mutex,
-			&wg,
+	for bounds.Upper == 0 {
+		go monthlyPayment.MonthlyPaymentAndUpdateBounds(
+			chBounds,
 			initialGuess,
-			&lowerBound,
-			&upperBound,
 			int(calculationRequest.DurationInYears),
 			int(calculationRequest.LoanAmount),
 			calculationRequest.InterestRate)
+
+		chBounds <- monthlyPayment.Bounds{Lower: 0, Upper: 0}
+		bounds = <-chBounds
 		initialGuess = initialGuess + 1000_00
-		wg.Wait()
 	}
 
 	// Try different values between lower and upper bound
-	for int(lowerBound) != int(upperBound) {
-		var wg sync.WaitGroup
+	for int(math.Round(float64(bounds.Lower))) != int(math.Round(float64(bounds.Upper))) {
 		for i := 0; i < numThreads; i++ {
-			wg.Add(1)
 			go monthlyPayment.MonthlyPaymentAndUpdateBounds(
-				&mutex,
-				&wg,
-				(float32(i+1)*lowerBound+float32(numThreads-i)*upperBound)/(numThreads+1),
-				&lowerBound,
-				&upperBound,
+				chBounds,
+				(float32(i+1)*bounds.Lower+float32(numThreads-i)*bounds.Upper)/(numThreads+1),
 				int(calculationRequest.DurationInYears),
 				int(calculationRequest.LoanAmount),
 				calculationRequest.InterestRate)
 		}
-
-		wg.Wait()
+		chBounds <- bounds
+		bounds = <-chBounds // I think the problem is that this can receive before the 2nd or 3rd goroutine
+		fmt.Printf("Bounds: %d, %d \n", int(bounds.Lower), int(bounds.Upper))
 	}
 
-	return int(lowerBound)
+	return int(bounds.Lower)
 }
