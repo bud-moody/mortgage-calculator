@@ -70,8 +70,7 @@ func findMonthlyPaymentIteratively(calculationRequest CalculationRequest) int {
 				calculationRequest.InterestRate)
 		}
 		chBounds <- bounds
-		bounds = <-chBounds // I think the problem is that this can receive before the 2nd or 3rd goroutine
-		fmt.Printf("Bounds: %d, %d \n", int(bounds.Lower), int(bounds.Upper))
+		bounds = <-chBounds 
 	}
 
 	return int(bounds.Lower)
